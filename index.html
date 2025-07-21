@@ -56,6 +56,8 @@
   <h2>CatsPartyPortTest 🌐</h2>
   <div class="card" id="ipInfo">Получение IP...</div>
   <div class="card" id="vpnStatus">VPN-анализ: ⏳</div>
+  <div class="card" id="gptStatus">ChatGPT: ⏳</div>
+  <div class="card" id="spotifyStatus">Spotify: ⏳</div>
   <div class="card" id="pingStatus">Мировые сайты: ⏳</div>
   <div class="center">
     <button id="closeBtn" onclick="Telegram.WebApp.close()">Закрыть</button>
@@ -124,6 +126,18 @@
       document.getElementById("pingStatus").innerHTML = html;
     }
 
+    async function testPingTo(url, elementId, label) {
+      const start = performance.now();
+      try {
+        await fetch(url, { mode: "no-cors" });
+        const delay = Math.round(performance.now() - start);
+        const status = delay < 300 ? "ok" : delay < 800 ? "warn" : "fail";
+        document.getElementById(elementId).innerHTML = `<b>${label}</b>: <span class="${status}">${statusText(status, delay)}</span>`;
+      } catch {
+        document.getElementById(elementId).innerHTML = `<b>${label}</b>: <span class="fail">${statusText("fail")}</span>`;
+      }
+    }
+
     async function main() {
       if (Telegram?.WebApp?.initData) {
         document.getElementById("closeBtn").style.display = "inline-block";
@@ -144,6 +158,8 @@
 
       analyzeVPN(data);
       testGlobalSites();
+      testPingTo("https://chat.openai.com", "gptStatus", "ChatGPT");
+      testPingTo("https://open.spotify.com", "spotifyStatus", "Spotify");
     }
 
     window.addEventListener("DOMContentLoaded", main);
