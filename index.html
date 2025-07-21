@@ -32,19 +32,23 @@
     .warn { color: #ffc107; }
     .fail { color: #f44336; }
     .neutral { color: #aaa; }
-    button {
+    #closeBtn {
       background-color: #007bff;
       color: #fff;
       padding: 12px 24px;
       border: none;
       border-radius: 8px;
       font-size: 16px;
-      margin-top: 20px;
-      cursor: pointer;
+      margin: 20px auto 0;
       display: none;
+      cursor: pointer;
+      display: block;
     }
-    button:hover {
+    #closeBtn:hover {
       background-color: #0056b3;
+    }
+    .center {
+      text-align: center;
     }
   </style>
 </head>
@@ -55,7 +59,10 @@
   <div class="card" id="spotifyStatus">Spotify: ⏳</div>
   <div class="card" id="otherStatus">Другие сайты: ⏳</div>
   <div class="card" id="vpnStatus">VPN-анализ: ⏳</div>
-  <button id="closeBtn" onclick="Telegram.WebApp.close()">Закрыть</button>
+
+  <div class="center">
+    <button id="closeBtn" onclick="Telegram.WebApp.close()">Закрыть</button>
+  </div>
 
   <script>
     function statusText(status, ms = null) {
@@ -70,27 +77,48 @@
 
     async function getIPInfo() {
       try {
-        const data = await fetch("https://ipapi.co/json/").then(res => res.json());
-        const provider = data.org || data.org_name || data.connection?.isp || "Неизвестно";
-        document.getElementById("ipInfo").innerHTML = `
-          🌐 IP: ${data.ip}<br>
-          📍 Город: ${data.city}<br>
-          🌎 Страна: ${data.country_name}<br>
-          🏢 Провайдер: ${provider}
-        `;
-        analyzeVPN(data);
+        let data = await fetch("https://ipapi.co/json/").then(res => res.json());
+        if (!data || !data.ip || data.error) throw new Error("ipapi failed");
+
+        processIPData(data);
       } catch {
-        document.getElementById("ipInfo").innerHTML = "❌ Не удалось получить информацию об IP";
+        try {
+          const data = await fetch("https://ipinfo.io/json?token=4a6f680e828c46").then(res => res.json());
+          processIPData(data);
+        } catch {
+          document.getElementById("ipInfo").innerHTML = "❌ Не удалось получить информацию об IP";
+        }
       }
     }
 
+    function processIPData(data) {
+      const provider = data.org || data.org_name || data.connection?.isp || "Неизвестно";
+      const city = data.city || "-";
+      const country = data.country_name || data.country || "-";
+
+      document.getElementById("ipInfo").innerHTML = `
+        🌐 IP: ${data.ip}<br>
+        📍 Город: ${city}<br>
+        🌎 Страна: ${country}<br>
+        🏢 Провайдер: ${provider}
+      `;
+      analyzeVPN(data);
+    }
+
     function analyzeVPN(data) {
-      const org = (data.org || "").toLowerCase();
-      const asn = (data.asn || "").toLowerCase();
-      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google", "digitalocean", "ovh", "hetzner"];
-      const match = hints.some(hint => org.includes(hint) || asn.includes(hint));
+      const fields = [
+        (data.org || "").toLowerCase(),
+        (data.hostname || "").toLowerCase(),
+        (data.asn || "").toLowerCase(),
+        (data.network || "").toLowerCase()
+      ];
+      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google", "ovh", "digitalocean", "contabo"];
+      const match = fields.some(field => hints.some(hint => field.includes(hint)));
+
       const status = match ? "fail" : "ok";
-      const msg = match ? "❗ Обнаружен возможный VPN или хостинг-провайдер" : "✅ Вероятно, обычное подключение";
+      const msg = match
+        ? "❗ Обнаружен возможный VPN, прокси или хостинг"
+        : "✅ Вероятно, обычное домашнее подключение";
       document.getElementById("vpnStatus").innerHTML = `<div class="status ${status}">${msg}</div>`;
     }
 
@@ -111,9 +139,9 @@
       await testPing("https://open.spotify.com/", "spotifyStatus", "Spotify");
 
       const testList = [
-        "https://www.google.com/",
-        "https://www.apple.com/",
-        "https://www.samsung.com/"
+        "https://www.nytimes.com/",
+        "https://www.adobe.com/",
+        "https://www.wikipedia.org/"
       ];
 
       let results = await Promise.all(testList.map(async (site) => {
@@ -135,8 +163,8 @@
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      if (Telegram.WebApp.initDataUnsafe) {
-        document.getElementById("closeBtn").style.display = "inline-block";
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
+        document.getElementById("closeBtn").style.display = "block";
       }
       getIPInfo();
       testSites();
