@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>CatsPartyPortTest</title>
+  <title>Проверка IP и соединения</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
@@ -14,8 +14,9 @@
       margin: 0;
     }
     h2 {
-      font-size: 1.6em;
+      font-size: 1.5em;
       margin-bottom: 20px;
+      text-align: center;
     }
     .card {
       background-color: #1e1e1e;
@@ -26,13 +27,12 @@
     }
     .status {
       font-weight: bold;
-      margin-top: 6px;
     }
     .ok { color: #4caf50; }
     .warn { color: #ffc107; }
     .fail { color: #f44336; }
     .neutral { color: #aaa; }
-    #closeBtn {
+    button {
       background-color: #007bff;
       color: #fff;
       padding: 12px 24px;
@@ -40,31 +40,39 @@
       border-radius: 8px;
       font-size: 16px;
       margin: 20px auto 0;
-      display: none;
       cursor: pointer;
-      display: block;
+      display: none;
     }
-    #closeBtn:hover {
+    button:hover {
       background-color: #0056b3;
     }
     .center {
-      text-align: center;
+      display: flex;
+      justify-content: center;
     }
   </style>
 </head>
 <body>
-  <h2>CatsPartyPortTest</h2>
+  <h2>CatsPartyPortTest 🌐</h2>
   <div class="card" id="ipInfo">Получение IP...</div>
-  <div class="card" id="gptStatus">ChatGPT: ⏳</div>
-  <div class="card" id="spotifyStatus">Spotify: ⏳</div>
-  <div class="card" id="otherStatus">Другие сайты: ⏳</div>
   <div class="card" id="vpnStatus">VPN-анализ: ⏳</div>
-
+  <div class="card" id="pingStatus">Мировые сайты: ⏳</div>
   <div class="center">
     <button id="closeBtn" onclick="Telegram.WebApp.close()">Закрыть</button>
   </div>
 
   <script>
+    const sites = [
+      { name: "Apple (США)", url: "https://www.apple.com" },
+      { name: "Samsung (Корея)", url: "https://www.samsung.com" },
+      { name: "Sony (Япония)", url: "https://www.sony.jp" },
+      { name: "Banco do Brasil (Бразилия)", url: "https://www.bb.com.br" },
+      { name: "Standard Bank (ЮАР)", url: "https://www.standardbank.co.za" },
+      { name: "Commonwealth Bank (Австралия)", url: "https://www.commbank.com.au" },
+      { name: "Deutsche Bank (Германия)", url: "https://www.db.com" },
+      { name: "ICICI Bank (Индия)", url: "https://www.icicibank.com" }
+    ];
+
     function statusText(status, ms = null) {
       const emoji = {
         ok: "🟢",
@@ -72,103 +80,73 @@
         fail: "🔴",
         neutral: "⚪"
       }[status];
-      return `${emoji} ${ms ? ms + ' мс' : ''}`;
+      return `${emoji} ${ms !== null ? ms + ' мс' : ''}`;
     }
 
-    async function getIPInfo() {
+    async function fetchWithFallback() {
       try {
-        let data = await fetch("https://ipapi.co/json/").then(res => res.json());
-        if (!data || !data.ip || data.error) throw new Error("ipapi failed");
-
-        processIPData(data);
+        return await fetch("https://ipapi.co/json/").then(r => r.json());
       } catch {
         try {
-          const data = await fetch("https://ipinfo.io/json?token=4a6f680e828c46").then(res => res.json());
-          processIPData(data);
+          return await fetch("https://ipwho.is/").then(r => r.json());
         } catch {
-          document.getElementById("ipInfo").innerHTML = "❌ Не удалось получить информацию об IP";
+          return null;
         }
       }
-    }
-
-    function processIPData(data) {
-      const provider = data.org || data.org_name || data.connection?.isp || "Неизвестно";
-      const city = data.city || "-";
-      const country = data.country_name || data.country || "-";
-
-      document.getElementById("ipInfo").innerHTML = `
-        🌐 IP: ${data.ip}<br>
-        📍 Город: ${city}<br>
-        🌎 Страна: ${country}<br>
-        🏢 Провайдер: ${provider}
-      `;
-      analyzeVPN(data);
     }
 
     function analyzeVPN(data) {
-      const fields = [
-        (data.org || "").toLowerCase(),
-        (data.hostname || "").toLowerCase(),
-        (data.asn || "").toLowerCase(),
-        (data.network || "").toLowerCase()
-      ];
-      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google", "ovh", "digitalocean", "contabo"];
-      const match = fields.some(field => hints.some(hint => field.includes(hint)));
-
+      const org = (data.org || "").toLowerCase();
+      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google", "digitalocean", "linode", "netcup", "ovh"];
+      const match = hints.some(hint => org.includes(hint));
       const status = match ? "fail" : "ok";
-      const msg = match
-        ? "❗ Обнаружен возможный VPN, прокси или хостинг"
-        : "✅ Вероятно, обычное домашнее подключение";
+      const msg = match ? "❗ Обнаружен возможный VPN / хостинг-провайдер" : "✅ Подключение выглядит нормальным";
       document.getElementById("vpnStatus").innerHTML = `<div class="status ${status}">${msg}</div>`;
     }
 
-    async function testPing(url, elementId, label) {
-      const start = performance.now();
-      try {
-        await fetch(url, { mode: "no-cors" });
-        const delay = Math.round(performance.now() - start);
-        const status = delay < 150 ? "ok" : delay < 600 ? "warn" : "fail";
-        document.getElementById(elementId).innerHTML = `${label}: <span class="${status}">${statusText(status, delay)}</span>`;
-      } catch {
-        document.getElementById(elementId).innerHTML = `${label}: <span class="fail">${statusText("fail")}</span>`;
-      }
-    }
-
-    async function testSites() {
-      await testPing("https://chat.openai.com/", "gptStatus", "ChatGPT");
-      await testPing("https://open.spotify.com/", "spotifyStatus", "Spotify");
-
-      const testList = [
-        "https://www.nytimes.com/",
-        "https://www.adobe.com/",
-        "https://www.wikipedia.org/"
-      ];
-
-      let results = await Promise.all(testList.map(async (site) => {
+    async function testGlobalSites() {
+      const results = await Promise.all(sites.map(async site => {
         const start = performance.now();
         try {
-          await fetch(site, { mode: "no-cors" });
-          const t = Math.round(performance.now() - start);
-          return { site, delay: t, status: t < 300 ? "ok" : t < 800 ? "warn" : "fail" };
+          await fetch(site.url, { mode: "no-cors" });
+          const delay = Math.round(performance.now() - start);
+          const status = delay < 300 ? "ok" : delay < 800 ? "warn" : "fail";
+          return { ...site, delay, status };
         } catch {
-          return { site, delay: null, status: "fail" };
+          return { ...site, delay: null, status: "fail" };
         }
       }));
 
-      const listHTML = results.map(r => {
-        const host = new URL(r.site).hostname;
-        return `<div><b>${host}</b>: <span class="${r.status}">${statusText(r.status, r.delay)}</span></div>`;
+      const html = results.map(r => {
+        return `<div><b>${r.name}</b>: <span class="${r.status}">${statusText(r.status, r.delay)}</span></div>`;
       }).join("");
-      document.getElementById("otherStatus").innerHTML = listHTML;
+
+      document.getElementById("pingStatus").innerHTML = html;
     }
 
-    window.addEventListener("DOMContentLoaded", () => {
-      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
-        document.getElementById("closeBtn").style.display = "block";
+    async function main() {
+      if (Telegram?.WebApp?.initData) {
+        document.getElementById("closeBtn").style.display = "inline-block";
       }
-      getIPInfo();
-      testSites();
-    });
+
+      const data = await fetchWithFallback();
+      if (!data || !data.ip) {
+        document.getElementById("ipInfo").innerHTML = "❌ Не удалось получить IP";
+        return;
+      }
+
+      document.getElementById("ipInfo").innerHTML = `
+        🌐 IP: ${data.ip}<br>
+        📍 Город: ${data.city}<br>
+        🌎 Страна: ${data.country_name || data.country}<br>
+        🏢 Провайдер: ${data.org || data.connection?.isp || "Неизвестно"}
+      `;
+
+      analyzeVPN(data);
+      testGlobalSites();
+    }
+
+    window.addEventListener("DOMContentLoaded", main);
   </script>
 </body>
 </html>
