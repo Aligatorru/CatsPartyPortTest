@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>PINK Port Test</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background-color: #121212;
+      color: #f0f0f0;
+      padding: 20px;
+      margin: 0;
+    }
+    h2 {
+      font-size: 1.6em;
+      margin-bottom: 20px;
+    }
+    .card {
+      background-color: #1e1e1e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    .status {
+      font-weight: bold;
+      margin-top: 6px;
+    }
+    .ok { color: #4caf50; }
+    .warn { color: #ffc107; }
+    .fail { color: #f44336; }
+    .neutral { color: #aaa; }
+    button {
+      background-color: #007bff;
+      color: #fff;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h2>🔎 PINK — Port Test</h2>
+  <div class="card" id="ipInfo">Получение IP...</div>
+  <div class="card" id="gptStatus">ChatGPT: ⏳</div>
+  <div class="card" id="spotifyStatus">Spotify: ⏳</div>
+  <div class="card" id="otherStatus">Другие сайты: ⏳</div>
+  <div class="card" id="vpnStatus">VPN-анализ: ⏳</div>
+  <button onclick="Telegram.WebApp.close()">Закрыть</button>
+
+  <script>
+    function statusText(status, ms = null) {
+      const emoji = {
+        ok: "🟢",
+        warn: "🟠",
+        fail: "🔴",
+        neutral: "⚪"
+      }[status];
+      return `${emoji} ${ms ? ms + ' мс' : ''}`;
+    }
+
+    async function getIPInfo() {
+      try {
+        const data = await fetch("https://ipapi.co/json/").then(res => res.json());
+        const provider = data.org || data.org_name || data.connection?.isp || "Неизвестно";
+        document.getElementById("ipInfo").innerHTML = `
+          🌐 IP: ${data.ip}<br>
+          📍 Город: ${data.city}<br>
+          🌎 Страна: ${data.country_name}<br>
+          🏢 Провайдер: ${provider}
+        `;
+        analyzeVPN(data);
+      } catch {
+        document.getElementById("ipInfo").innerHTML = "❌ Не удалось получить информацию об IP";
+      }
+    }
+
+    function analyzeVPN(data) {
+      const org = (data.org || "").toLowerCase();
+      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google"];
+      const match = hints.some(hint => org.includes(hint));
+      const status = match ? "fail" : "ok";
+      const msg = match ? "❗ Обнаружен возможный VPN или хостинг-провайдер" : "✅ Вероятно, обычное подключение";
+      document.getElementById("vpnStatus").innerHTML = `<div class="status ${status}">${msg}</div>`;
+    }
+
+    async function testPing(url, elementId, label) {
+      const start = performance.now();
+      try {
+        await fetch(url, { mode: "no-cors" });
+        const delay = Math.round(performance.now() - start);
+        const status = delay < 150 ? "ok" : delay < 600 ? "warn" : "fail";
+        document.getElementById(elementId).innerHTML = `${label}: <span class="${status}">${statusText(status, delay)}</span>`;
+      } catch {
+        document.getElementById(elementId).innerHTML = `${label}: <span class="fail">${statusText("fail")}</span>`;
+      }
+    }
+
+    async function testSites() {
+      await testPing("https://chat.openai.com/", "gptStatus", "ChatGPT");
+      await testPing("https://open.spotify.com/", "spotifyStatus", "Spotify");
+
+      // можно поменять на другие сайты по желанию
+      const testList = [
+        "https://www.nytimes.com/",
+        "https://www.adobe.com/",
+        "https://www.wikipedia.org/"
+      ];
+
+      let results = await Promise.all(testList.map(async (site) => {
+        const start = performance.now();
+        try {
+          await fetch(site, { mode: "no-cors" });
+          const t = Math.round(performance.now() - start);
+          return { site, delay: t, status: t < 300 ? "ok" : t < 800 ? "warn" : "fail" };
+        } catch {
+          return { site, delay: null, status: "fail" };
+        }
+      }));
+
+      const listHTML = results.map(r => {
+        const host = new URL(r.site).hostname;
+        const time = r.delay !== null ? `${r.delay} мс` : "нет связи";
+        return `<div><b>${host}</b>: <span class="${r.status}">${statusText(r.status, r.delay)}</span></div>`;
+      }).join("");
+      document.getElementById("otherStatus").innerHTML = listHTML;
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      if (Telegram.WebApp.colorScheme === "dark") {
+        document.body.classList.add("dark");
+      }
+      getIPInfo();
+      testSites();
+    });
+  </script>
+</body>
+</html>
