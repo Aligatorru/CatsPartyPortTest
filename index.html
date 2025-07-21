@@ -41,6 +41,7 @@
       font-size: 16px;
       margin-top: 20px;
       cursor: pointer;
+      display: none;
     }
     button:hover {
       background-color: #0056b3;
@@ -48,13 +49,13 @@
   </style>
 </head>
 <body>
-  <h2>🔎 PINK — Port Test</h2>
+  <h2>CatsPartyPortTest</h2>
   <div class="card" id="ipInfo">Получение IP...</div>
   <div class="card" id="gptStatus">ChatGPT: ⏳</div>
   <div class="card" id="spotifyStatus">Spotify: ⏳</div>
   <div class="card" id="otherStatus">Другие сайты: ⏳</div>
   <div class="card" id="vpnStatus">VPN-анализ: ⏳</div>
-  <button onclick="Telegram.WebApp.close()">Закрыть</button>
+  <button id="closeBtn" onclick="Telegram.WebApp.close()">Закрыть</button>
 
   <script>
     function statusText(status, ms = null) {
@@ -85,8 +86,9 @@
 
     function analyzeVPN(data) {
       const org = (data.org || "").toLowerCase();
-      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google"];
-      const match = hints.some(hint => org.includes(hint));
+      const asn = (data.asn || "").toLowerCase();
+      const hints = ["vpn", "hosting", "server", "colo", "data", "cloud", "aws", "azure", "google", "digitalocean", "ovh", "hetzner"];
+      const match = hints.some(hint => org.includes(hint) || asn.includes(hint));
       const status = match ? "fail" : "ok";
       const msg = match ? "❗ Обнаружен возможный VPN или хостинг-провайдер" : "✅ Вероятно, обычное подключение";
       document.getElementById("vpnStatus").innerHTML = `<div class="status ${status}">${msg}</div>`;
@@ -108,7 +110,6 @@
       await testPing("https://chat.openai.com/", "gptStatus", "ChatGPT");
       await testPing("https://open.spotify.com/", "spotifyStatus", "Spotify");
 
-      // можно поменять на другие сайты по желанию
       const testList = [
         "https://www.nytimes.com/",
         "https://www.adobe.com/",
@@ -128,15 +129,14 @@
 
       const listHTML = results.map(r => {
         const host = new URL(r.site).hostname;
-        const time = r.delay !== null ? `${r.delay} мс` : "нет связи";
         return `<div><b>${host}</b>: <span class="${r.status}">${statusText(r.status, r.delay)}</span></div>`;
       }).join("");
       document.getElementById("otherStatus").innerHTML = listHTML;
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      if (Telegram.WebApp.colorScheme === "dark") {
-        document.body.classList.add("dark");
+      if (Telegram.WebApp.initDataUnsafe) {
+        document.getElementById("closeBtn").style.display = "inline-block";
       }
       getIPInfo();
       testSites();
